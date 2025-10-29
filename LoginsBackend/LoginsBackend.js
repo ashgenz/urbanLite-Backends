@@ -149,7 +149,26 @@ import jwt from "jsonwebtoken";
 const app = express();
 const JWT_KEY = process.env.JWT_KEY;
 
-app.use(cors());
+const allowedOrigins = [
+  "http://localhost:5173",
+  "https://urbanlite-frontend.onrender.com", // <-- change to your real frontend Render URL
+];
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin || allowedOrigins.includes(origin)) {
+        callback(null, true);
+      } else {
+        console.warn("CORS blocked origin:", origin);
+        callback(new Error("Not allowed by CORS"));
+      }
+    },
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  })
+);
 app.use(express.json());
 
 // ------------------ MongoDB Connection ------------------
