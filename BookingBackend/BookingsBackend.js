@@ -8,7 +8,7 @@ import cors from "cors";
 import jwt from "jsonwebtoken";
 
 import axios from "axios";
-import { UNIT_PRICES } from "../../urbanLite-React/urbanLite/src/priceConfig.js";
+import { UNIT_PRICES } from "./priceConfig.js";
 
 
 
