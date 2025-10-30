@@ -343,7 +343,7 @@ app.post("/api/worker/bookings/:id/accept", verifyToken, async (req, res) => {
   try {
     // call Worker service to get worker details (name)
     // worker service runs on port 8000 in your setup
-    const workerServiceUrl = `http://localhost:${PORTWORKER}/workers/${req.user.id}`;
+    const workerServiceUrl = `https://urbanlite-backends-pd2g.onrender.com/workers/${req.user.id}`;
     console.log(PORTWORKER)
     let workerResp;
     try {
@@ -489,7 +489,7 @@ app.post("/api/user/bookings/:id/pay", verifyToken, async (req, res) => {
         const payout = Math.round(booking.EstimatedPrice * 0.8);
         const commission = Math.round(booking.EstimatedPrice * 0.2);
 
-        await axios.post("http://localhost:8000/api/internal/worker/update-wallet", {
+        await axios.post("https://urbanlite-backends-pd2g.onrender.com/api/internal/worker/update-wallet", {
           workerId: booking.IdWorker,
           payout,
           commission,
@@ -551,7 +551,7 @@ app.post("/api/worker/bookings/:id/pay-commission", verifyToken, async (req, res
 
     // 🔄 Deduct from worker wallet via Worker Service
     try {
-      await axios.post(`http://localhost:${PORTWORKER}/api/internal/worker/pay-commission`, {
+      await axios.post(`https://urbanlite-backends-pd2g.onrender.com/api/internal/worker/pay-commission`, {
         workerId: booking.IdWorker,
         amount: commission,
         bookingId: booking.bookingId,
