@@ -119,104 +119,120 @@ const Booking = mongoose.model("Booking", BookingSchema);
 
 // ... (previous code before calculatePrice)
 function calculatePrice(booking) {
-//   const UNIT_PRICES = {
-//     Monthly: { room: 8, kitchen: 10, hall: 12, toilet: 15, meal: 25, naashta: 15, bartan: 1 },
-//     OneTime: { room: 10, kitchen: 13, hall: 15, toilet: 18, meal: 40, naashta: 20, bartan: 2 },
-//   };
+  const isMonthly = booking.MonthlyOrOneTime === "Monthly";
+  const unit = UNIT_PRICES[booking.MonthlyOrOneTime] || UNIT_PRICES.Monthly;
+  const days = isMonthly ? 30 * (booking.Months || 1) : 1;
 
-  const isMonthly = booking.MonthlyOrOneTime === "Monthly";
-  const unit = UNIT_PRICES[booking.MonthlyOrOneTime] || UNIT_PRICES.Monthly;
-  const days = isMonthly ? 30 * (booking.Months || 1) : 1;
+  let total = 0;
 
-  let total = 0;
+  for (const srv of booking.services || []) {
+    switch (srv.WorkName) {
 
-  for (const srv of booking.services || []) {
-    switch (srv.WorkName) {
-      case "Jhadu Pocha": {
-        let jhaduFrequency = srv.JhaduFrequency;
-        
-        // FIX 1: Only apply plan logic if Monthly
+      case "Jhadu Pocha": {
+        let jhaduFrequency = srv.JhaduFrequency;
         let jhaduFactor = 1;
 
         if (isMonthly) {
-            if (!jhaduFrequency) {
-                jhaduFrequency = 
-                    booking.WhichPlan === "Premium" ? "Daily" :
-                    booking.WhichPlan === "Standard" ? "Alternate day" :
-                    "Alternate day";
-            }
-            jhaduFactor = jhaduFrequency === "Alternate day" ? 0.5 : 1;
+          if (!jhaduFrequency) {
+            jhaduFrequency =
+              booking.WhichPlan === "Premium" ? "Daily" :
+              booking.WhichPlan === "Standard" ? "Alternate day" :
+              "Alternate day";
+          }
+          jhaduFactor = jhaduFrequency === "Alternate day" ? 0.5 : 1;
         }
 
-        total += ((srv.NoOfRooms || 0) * unit.room +
-                  (srv.NoOfKitchen || 0) * unit.kitchen +
-                  (srv.HallSize || 0) * unit.hall) * jhaduFactor * days;
-        break;
-      }
+        total += (
+          (srv.NoOfRooms || 0) * unit.room +
+          (srv.NoOfKitchen || 0) * unit.kitchen +
+          (srv.HallSize || 0) * unit.hall
+        ) * jhaduFactor * days;
 
-      case "Toilet Cleaning": {
-        let toiletFreq = srv.FrequencyPerWeek;
-        
-        // FIX 2: Only apply plan logic if Monthly
-        let toiletFactor = 1; // Default to 1 for OneTime, or 0 if Monthly logic applies
+        break;
+      }
+
+      case "Toilet Cleaning": {
+        let toiletFreq = srv.FrequencyPerWeek;
+        let toiletFactor = 1;
 
         if (isMonthly) {
-            if (!toiletFreq) {
-                toiletFreq = booking.WhichPlan === "Custom" ? booking.FrequencyPerWeek || "Twice a week" : "Twice a week";
-            }
-            toiletFactor = 0; // Reset factor before calculating for monthly
-            if (toiletFreq === "Twice a week") toiletFactor = 2 / 7;
-            else if (toiletFreq === "Thrice a week") toiletFactor = 3 / 7;
+          if (!toiletFreq) {
+            toiletFreq =
+              booking.WhichPlan === "Custom"
+                ? booking.FrequencyPerWeek || "Twice a week"
+                : "Twice a week";
+          }
+
+          toiletFactor = 0;
+          if (toiletFreq === "Twice a week") toiletFactor = 2 / 7;
+          else if (toiletFreq === "Thrice a week") toiletFactor = 3 / 7;
         }
 
-        total += (srv.NoOfToilets || 0) * unit.toilet * toiletFactor * days;
-        break;
-      }
+        total += (srv.NoOfToilets || 0) * unit.toilet * toiletFactor * days;
+        break;
+      }
 
-      case "Bartan Service": {
-        let bartanFreq = srv.FrequencyPerDay;
-
-        // FIX 3: Only apply plan logic if Monthly
+      case "Bartan Service": {
+        let bartanFreq = srv.FrequencyPerDay;
         let bartanFactor = 1;
 
         if (isMonthly) {
-            if (!bartanFreq) {
-                bartanFreq =
-                    booking.WhichPlan === "Premium" ? "Twice a day" :
-                    booking.WhichPlan === "Standard" ? "Once a day" :
-                    booking.FrequencyPerDay || "Once a day";
-            }
-            bartanFactor = bartanFreq === "Twice a day" ? 2 : 1;
+          if (!bartanFreq) {
+            bartanFreq =
+              booking.WhichPlan === "Premium" ? "Twice a day" :
+              booking.WhichPlan === "Standard" ? "Once a day" :
+              booking.FrequencyPerDay || "Once a day";
+          }
+          bartanFactor = bartanFreq === "Twice a day" ? 2 : 1;
         }
 
-        total += (srv.AmountOfBartan || 0) * unit.bartan * bartanFactor * days;
-        break;
-      }
+        total += (srv.AmountOfBartan || 0) * unit.bartan * bartanFactor * days;
+        break;
+      }
 
-      case "Cook Service": {
-        // Cook service inherently does not use the Standard/Premium/Custom plans for frequency derivation, 
-        // but since `days` is 1 for OneTime, no changes are strictly necessary here, but we will protect it.
-        const mealsPerDay = isMonthly && srv.FrequencyPerDay === "Twice" ? 2 : 1;
+      case "Cook Service": {
+        // ✔ EXACT MATCH WITH useMemo()
 
-        // Base cooking and naashta cost (no change needed as `days` handles the scaling)
-        total += (srv.NoOfPeople || 0) * mealsPerDay * unit.meal * days;
-        if (srv.IncludeNaashta) total += (srv.NoOfPeople || 0) * unit.naashta * days;
-        
-        // Bartan ADD-ON protection
-        if (srv.IncludeBartan) {
-          const cookBartanFactor = isMonthly && srv.FrequencyPerDay === "Twice" ? 2 : 1;
-          total += (srv.AmountOfBartan || 0) * unit.bartan * cookBartanFactor * days;
-        }
-        break;
-      }
+        const mealsPerDay = srv.FrequencyPerDay === "Twice" ? 2 : 1;
 
-      default:
-        break;
-    }
-  }
+        // --- Meals ---
+        const mealCost =
+          (srv.NoOfPeople || 0) * mealsPerDay * unit.meal;
 
-  return Math.round(total);
+        // --- Naashta ---
+        const naashtaCost = srv.IncludeNaashta
+          ? (srv.NoOfPeople || 0) * unit.naashta
+          : 0;
+
+        // --- Bartan ---
+        let bartanCost = 0;
+
+        if (srv.IncludeBartan) {
+          // Bartan required for meals
+          const mealBartan =
+            (srv.NoOfPeople || 0) * mealsPerDay * unit.bartan;
+
+          // Extra bartan given by user
+          const extraBartan =
+            (Number(srv.AmountOfBartan) || 0) * unit.bartan;
+
+          bartanCost = mealBartan + extraBartan;
+        }
+
+        // --- FINAL (matches useMemo exactly) ---
+        total += Math.round((mealCost + naashtaCost + bartanCost) * days);
+
+        break;
+      }
+
+      default:
+        break;
+    }
+  }
+
+  return Math.round(total);
 }
+
 
 // ... (rest of server.js)
 
