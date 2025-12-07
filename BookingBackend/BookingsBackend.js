@@ -211,7 +211,7 @@ case "Cook Service": {
     const mealBartan = people * mealsPerDay * unit.bartan;
 
     // IMPORTANT: Use existing schema field
-    const extraBartan = Number(srv.AmountOfBartan) || 0;
+    const extraBartan = Number(srv.Bartan.extraBartan) || 0;
 
     bartanCost = mealBartan + extraBartan * unit.bartan;
   }
