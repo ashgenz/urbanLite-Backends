@@ -181,10 +181,10 @@ function calculatePrice(booking) {
             bartanFreq =
               booking.WhichPlan === "Premium" ? "Twice a day" :
               booking.WhichPlan === "Standard" ? "Once a day" :
-              booking.FrequencyPerDay || "Once a day";
+              booking.FrequencyPerDay;
           }
-          bartanFactor = bartanFreq === "Twice a day" ? 2 : 1;
         }
+        bartanFactor = bartanFreq === "Twice" ? 2 : 1;
 
         total += (srv.AmountOfBartan || 0) * unit.bartan * bartanFactor * days;
         break;
