@@ -190,40 +190,38 @@ function calculatePrice(booking) {
         break;
       }
 
-      case "Cook Service": {
-        // ✔ EXACT MATCH WITH useMemo()
+case "Cook Service": {
+  const mealsPerDay = srv.FrequencyPerDay === "Twice" ? 2 : 1;
 
-        const mealsPerDay = srv.FrequencyPerDay === "Twice" ? 2 : 1;
+  // People count (default = 1 just like frontend)
+  const people = Number(srv.NoOfPeople) || 1;
 
-        // --- Meals ---
-        const mealCost =
-          (srv.NoOfPeople || 0) * mealsPerDay * unit.meal;
+  // --- Meals ---
+  const mealCost = people * mealsPerDay * unit.meal;
 
-        // --- Naashta ---
-        const naashtaCost = srv.IncludeNaashta
-          ? (srv.NoOfPeople || 0) * unit.naashta
-          : 0;
+  // --- Naashta ---
+  const naashtaCost = srv.IncludeNaashta
+    ? people * unit.naashta
+    : 0;
 
-        // --- Bartan ---
-        let bartanCost = 0;
+  // --- Bartan ---
+  let bartanCost = 0;
 
-        if (srv.IncludeBartan) {
-          // Bartan required for meals
-          const mealBartan =
-            (srv.NoOfPeople || 0) * mealsPerDay * unit.bartan;
+  if (srv.IncludeBartan) {
+    const mealBartan = people * mealsPerDay * unit.bartan;
 
-          // Extra bartan given by user
-          const extraBartan =
-            (Number(srv.AmountOfBartan) || 0) * unit.bartan;
+    // IMPORTANT: Use existing schema field
+    const extraBartan = Number(srv.AmountOfBartan) || 0;
 
-          bartanCost = mealBartan + extraBartan;
-        }
+    bartanCost = mealBartan + extraBartan * unit.bartan;
+  }
 
-        // --- FINAL (matches useMemo exactly) ---
-        total += Math.round((mealCost + naashtaCost + bartanCost) * days);
+  const subtotal = (mealCost + naashtaCost + bartanCost) * days;
 
-        break;
-      }
+  total += Math.round(subtotal);
+  break;
+}
+
 
       default:
         break;
