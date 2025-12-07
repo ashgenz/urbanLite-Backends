@@ -206,14 +206,38 @@ case "Cook Service": {
 
   // --- Bartan ---
   let bartanCost = 0;
-  let extraBartan=0;
-  const mealBartan = people * mealsPerDay * unit.bartan;
-  console.log(Number(srv.Bartan.extraBartan));
-  
-  if (srv.Bartan.extraBartan) {
-    extraBartan = Number(srv.Bartan.extraBartan) || 0;
+
+  // Determine whether the booking includes Bartan (explicit flag OR Bartan object)
+  const includeBartan = !!srv.IncludeBartan || !!srv.Bartan;
+
+  if (includeBartan) {
+    // mealBartan is utensils coming from the meals themselves
+    const mealBartan = people * mealsPerDay;
+
+    // Prefer explicit AmountOfBartan (from schema). Use it only if it's defined (could be 0).
+    // Otherwise fall back to srv.Bartan?.extraBartan (frontend may send this).
+    const extraBartanFromAmountField =
+      typeof srv.AmountOfBartan !== "undefined" ? Number(srv.AmountOfBartan) : null;
+
+    const extraBartanFallback = Number(srv.Bartan?.extraBartan || 0);
+
+    // final extraBartan to use:
+    const extraBartan =
+      extraBartanFromAmountField !== null ? extraBartanFromAmountField : extraBartanFallback;
+
+    // total utensils = meal utensils + extra utensils
+    const totalUtensils = mealBartan + extraBartan;
+
+    // multiply by unit price per utensil
+    bartanCost = totalUtensils * unit.bartan;
+  } else {
+    bartanCost = 0;
   }
-  bartanCost = mealBartan + extraBartan * unit.bartan;
+
+
+
+
+
 
   const subtotal = (mealCost + naashtaCost + bartanCost) * days;
 
@@ -468,6 +492,7 @@ const bookings = await Booking.insertMany(
     res.status(201).json(bookings);
   } catch (err) {
     res.status(500).json({ message: err.message });
+    console.log(err.message);
   }
 });
 
