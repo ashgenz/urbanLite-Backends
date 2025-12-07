@@ -206,15 +206,14 @@ case "Cook Service": {
 
   // --- Bartan ---
   let bartanCost = 0;
-
-  if (srv.IncludeBartan) {
-    const mealBartan = people * mealsPerDay * unit.bartan;
-
-    // IMPORTANT: Use existing schema field
-    const extraBartan = Number(srv.Bartan.extraBartan) || 0;
-
-    bartanCost = mealBartan + extraBartan * unit.bartan;
+  let extraBartan=0;
+  const mealBartan = people * mealsPerDay * unit.bartan;
+  console.log(Number(srv.Bartan.extraBartan));
+  
+  if (srv.Bartan.extraBartan) {
+    extraBartan = Number(srv.Bartan.extraBartan) || 0;
   }
+  bartanCost = mealBartan + extraBartan * unit.bartan;
 
   const subtotal = (mealCost + naashtaCost + bartanCost) * days;
 
