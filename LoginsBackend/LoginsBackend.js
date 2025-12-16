@@ -314,7 +314,10 @@ app.post("/api/user/forgot-password/reset-password", async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 });
-
+// Keep-Alive Endpoint
+app.get('/ping', (req, res) => {
+  res.status(200).send('Pong');
+});
 // ------------------ Check Phone ------------------
 app.post("/api/user/check-phone", async (req, res) => {
   const { phone } = req.body;
