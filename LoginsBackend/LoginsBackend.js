@@ -152,6 +152,7 @@ const JWT_KEY = process.env.JWT_KEY;
 const allowedOrigins = [
   "http://localhost:5173",
   "https://urbanlite-frontend.onrender.com", // <-- change to your real frontend Render URL
+  "https://tryurbanlite.in",
 ];
 
 app.use(
