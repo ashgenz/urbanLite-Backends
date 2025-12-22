@@ -264,95 +264,118 @@ function calculatePrice(booking) {
   }
 
   const isMonthly = booking.MonthlyOrOneTime === "Monthly";
-  const unit = UNIT_PRICES.Monthly; // Basic units { room: 13, toilet: 35 ... }
-  
-  // NOTE: UNIT_PRICES.Cleaning_Monthly contains the "Daily Frequency" package prices
-  const packageRates = UNIT_PRICES.Cleaning_Monthly || {}; 
+  // ✅ Pricing Config (Matches Frontend exactly)
+  const unit = { room: 13, kitchen: 15, hall: 15, toilet: 35, bartan: 1.5, meal: 25, naashta: 15 };
+  const packageRates = { bhk1: 1300, bhk2: 1700, bhk3: 2100, bhk4: 2300 };
 
   const months = Number(booking.Months) || 1;
   const days = isMonthly ? 30 * months : 1;
 
   let total = 0;
 
-  for (const srv of booking.services || []) {
+  // 🔍 CHECK: Is there a "Main Service" (Cook or Jhadu)?
+  // If yes, Bartan is an "Add-on" and we SKIP the minimum price floor.
+  const services = booking.services || [];
+  const hasMainService = services.some(s => 
+    s.WorkName === "Jhadu Pocha" || s.WorkName === "Cook Service"
+  );
+
+  for (const srv of services) {
     switch (srv.WorkName) {
 
       // --- 1. JHADU POCHA ---
-// --- 1. JHADU POCHA ---
       case "Jhadu Pocha": {
         let jhaduFrequency = srv.JhaduFrequency;
-        
-        // 1. Determine Frequency & Factor
+        // Default frequency logic
         if (isMonthly && !jhaduFrequency) {
            jhaduFrequency = booking.WhichPlan === "Premium" ? "Daily" : "Alternate day";
         }
 
+        // Factor: Alternate = 0.75, Daily = 1.0
         let jhaduFactor = 1.0;
         if (isMonthly && jhaduFrequency === "Alternate day") {
             jhaduFactor = 0.75;
         }
 
-        // 2. Determine Monthly Base Price
-        const flatType = srv.FlatType; // e.g., "1BHK", "2BHK", "Custom"
         let monthlyBase = 0;
 
-        // Check if it's a Standard Flat Package
-        if (isMonthly && flatType && flatType !== "Custom") {
-            const key = "bhk" + flatType.charAt(0); // "1BHK" -> "bhk1"
-            if (packageRates[key]) {
-                monthlyBase = packageRates[key];
-            }
-        } 
-        
-        // If not a package (or is Custom), calculate from components
+        // A. Try explicit FlatType (e.g. "2BHK")
+        if (srv.FlatType && srv.FlatType !== "Custom") {
+            const key = "bhk" + srv.FlatType.charAt(0);
+            if (packageRates[key]) monthlyBase = packageRates[key];
+        }
+
+        // B. Infer Package from Room Counts (Fixes the ₹15 diff)
+        // If FlatType is missing/custom but counts match standard flats, use Package Rate.
+        if (monthlyBase === 0 && isMonthly) {
+             const r = Number(srv.NoOfRooms || 0);
+             const k = Number(srv.NoOfKitchen || 0);
+             const h = Number(srv.HallSize || 0);
+             
+             // Standard config usually has 1 Kitchen + 1 Hall
+             if (k === 1 && h === 1) {
+                 if (r === 1) monthlyBase = packageRates.bhk1; 
+                 else if (r === 2) monthlyBase = packageRates.bhk2; 
+                 else if (r === 3) monthlyBase = packageRates.bhk3; 
+                 else if (r === 4) monthlyBase = packageRates.bhk4; 
+             }
+        }
+
+        // C. Fallback to Granular Custom Calculation
         if (monthlyBase === 0) {
-            // Custom Flat: (Daily Sum * 30 days)
             const dailySum = (
-              (srv.NoOfRooms || 0) * unit.room +
-              (srv.NoOfKitchen || 0) * unit.kitchen +
-              (srv.HallSize || 0) * unit.hall
+              (Number(srv.NoOfRooms) || 0) * unit.room +
+              (Number(srv.NoOfKitchen) || 0) * unit.kitchen +
+              (Number(srv.HallSize) || 0) * unit.hall
             );
             monthlyBase = dailySum * 30;
         }
 
-        // 3. Final Calculation: Base * Factor * Months
         total += monthlyBase * jhaduFactor * months;
         break;
       }
 
       // --- 2. TOILET CLEANING ---
       case "Toilet Cleaning": {
-        let toiletVisits = 0;
-        const toiletFreq = srv.FrequencyPerWeek || "Twice a week";
+        const freq = srv.FrequencyPerWeek || "Twice a week";
+        let visits = 0;
 
         if (isMonthly) {
-          // ✅ LOGIC FIX: Use fixed visits (8 or 12) to match Frontend exactly
-          // Frontend: 8 visits = 280. Backend (Old): 30*(2/7) = 300. Now synced.
-          if (toiletFreq === "Twice a week") toiletVisits = 8 * months;
-          else if (toiletFreq === "Thrice a week") toiletVisits = 12 * months;
+            if (freq === "Twice a week") visits = 8;
+            if (freq === "Thrice a week") visits = 12;
         } else {
-          toiletVisits = 1; // One time
+            visits = 1;
         }
 
-        total += (srv.NoOfToilets || 0) * unit.toilet * toiletVisits;
+        total += (srv.NoOfToilets || 0) * unit.toilet * visits * months;
         break;
       }
 
       // --- 3. BARTAN SERVICE ---
       case "Bartan Service": {
-        const bartanFreq = srv.FrequencyPerDay || "Once a day";
-        const bartanFactor = (bartanFreq === "Twice" || bartanFreq === "Twice a day") ? 2 : 1;
-        
-        // Raw Calculation: Count * Unit(1.5) * Factor * Days
-        let bartanTotal = (srv.AmountOfBartan || 0) * unit.bartan * bartanFactor * days;
+        const freq = srv.FrequencyPerDay || "Once a day";
+        let visits = 0;
 
-        // ✅ Apply Minimum Floor Price (800/1400)
         if (isMonthly) {
-           const minMonthly = bartanFactor === 2 ? 1400 : 800;
-           const floorPrice = minMonthly * months;
-           bartanTotal = Math.max(bartanTotal, floorPrice);
+            if (freq === "Once a day") visits = 30;
+            if (freq === "Twice a day") visits = 60;
+        } else {
+            visits = 1;
         }
 
+        // Raw Calculation
+        let bartanTotal = (srv.AmountOfBartan || 0) * unit.bartan * visits * months;
+
+        // ✅ CONDITIONAL FLOOR PRICE
+        // Only apply 800/1400 floor if this is a Standalone Bartan booking
+        if (isMonthly && !hasMainService) {
+            const freqFactor = (freq === "Twice a day" || freq === "Twice") ? 2 : 1;
+            const minMonthly = freqFactor === 2 ? 1400 : 800;
+            const floorPrice = minMonthly * months;
+            
+            bartanTotal = Math.max(bartanTotal, floorPrice);
+        }
+        
         total += bartanTotal;
         break;
       }
@@ -363,7 +386,7 @@ function calculatePrice(booking) {
         let monthlyCookPrice = 0;
 
         // A. Food Cost
-        const foodTiers = UNIT_PRICES.Cook_Monthly;
+        const foodTiers = { p1: 2400, p2: 3600, p3: 4600, per_head_bulk: 1400 };
         if (people === 1) monthlyCookPrice += foodTiers.p1;
         else if (people === 2) monthlyCookPrice += foodTiers.p2;
         else if (people === 3) monthlyCookPrice += foodTiers.p3;
@@ -371,34 +394,30 @@ function calculatePrice(booking) {
 
         // B. Naashta
         if (srv.IncludeNaashta) {
-           const bfTiers = UNIT_PRICES.Cook_Breakfast;
+           const bfTiers = { p1: 800, p2: 1050, p3: 1300, per_head_bulk: 425 };
            if (people === 1) monthlyCookPrice += bfTiers.p1;
            else if (people === 2) monthlyCookPrice += bfTiers.p2;
            else if (people === 3) monthlyCookPrice += bfTiers.p3;
-           else if (people === 4) monthlyCookPrice += bfTiers.p4;
            else monthlyCookPrice += people * bfTiers.per_head_bulk;
         }
 
-        // C. Bartan
-        // Check both boolean flag AND complex object structure
+        // C. Bartan (Inside Cook)
         const hasBartan = srv.IncludeBartan || (srv.Bartan && (srv.Bartan.include || srv.Bartan.mealBartan));
         
         if (hasBartan) {
-           const bTiers = UNIT_PRICES.Cook_Bartan;
+           const bTiers = { p1: 270, p2: 400, p3: 540, per_head_bulk: 170 };
            if (people === 1) monthlyCookPrice += bTiers.p1;
            else if (people === 2) monthlyCookPrice += bTiers.p2;
            else if (people === 3) monthlyCookPrice += bTiers.p3;
-           else if (people === 4) monthlyCookPrice += bTiers.p4;
            else monthlyCookPrice += people * bTiers.per_head_bulk;
            
-           // Handle Extra Bartan Input
+           // Extra Bartan
            const extraCount = Number(srv.Bartan?.extraBartan || srv.AmountOfBartan || 0);
            if (extraCount > 0) {
               monthlyCookPrice += (extraCount * unit.bartan * 30);
            }
         }
 
-        // Frequency Adjustment (Once a day = 60% of total)
         if (srv.FrequencyPerDay === "Once") {
            monthlyCookPrice = monthlyCookPrice * 0.6;
         }
@@ -406,7 +425,7 @@ function calculatePrice(booking) {
         total += Math.round(monthlyCookPrice * months);
         break;
       }
-
+      
       default:
         break;
     }
