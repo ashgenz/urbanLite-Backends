@@ -436,6 +436,41 @@ function calculatePrice(booking) {
 
 // ... (rest of server.js)
 
+// BookingsBackend.js - Add at the top with other constants
+const TELEGRAM_BOT_TOKEN = "8147796035:AAGJZ6shtCn9EHnfJRYQif_qL59AvX8zSNA";
+const TELEGRAM_CHAT_ID = "1191606191";
+const IGNORED_USERS = [
+    "694a74b2715e94872a6c1014", // Lakshsay
+    // "68a348119b318dfb5e2cc90d", // Ashish
+    "6952c2a1715e94872a6c102a"  // Girishma
+];
+
+
+const sendTelegramAlert = async (bookingDetails) => {
+  try {
+    // 1. Manually encode the message to match your working browser URL
+    const message = `🚀 New UrbanLite Booking!\n\n` +
+      `🆔 ID: ${bookingDetails.bookingId}\n` +
+      `📍 Address: ${bookingDetails.address || "N/A"}\n` +
+      `🛠 Service: ${bookingDetails.WorkName || "N/A"}\n` +
+      `💰 Price: ₹${bookingDetails.EstimatedPrice || 0}\n` +
+      `📅 Date: ${new Date(bookingDetails.Date).toLocaleDateString()}`;
+
+    // 2. Use the exact working base URL from your test
+    const token = "8147796035:AAGJZ6shtCn9EHnfJRYQif_qL59AvX8zSNA";
+    const chatId = "1191606191";
+    
+    // 3. Construct the full URL just like the one you pasted
+    const url = `https://api.telegram.org/bot${token}/sendMessage?chat_id=${chatId}&text=${encodeURIComponent(message)}`;
+
+    // 4. Use axios.get (matching the browser's behavior) instead of axios.post
+    await axios.get(url);
+    
+    console.log("✅ Telegram Notification Sent via Working URL");
+  } catch (error) {
+    console.error("❌ Telegram Alert Failed:", error.response?.data || error.message);
+  }
+};
 
 
 // ------------------------
@@ -465,6 +500,9 @@ app.post("/api/dev/token", (req, res) => {
   const token = jwt.sign({ id, role }, JWT_KEY, { expiresIn: "7d" });
   res.json({ token });
 });
+
+
+
 
 // Customer bookings
 app.get("/api/user/bookings", verifyToken, async (req, res) => {
@@ -654,29 +692,36 @@ app.get('/ping', (req, res) => {
 });
 
 // User creates booking 
+// User creates booking 
 app.post("/api/user/book", verifyToken, async (req, res) => {
   try {
     const data = Array.isArray(req.body) ? req.body : [req.body];
 
-const bookings = await Booking.insertMany(
-  data.map((item) => {
-    const EstimatedPrice = calculatePrice(item); // ✅ calculate on backend
-    return {
-      ...item,
-      bookingId: `bk_${Date.now()}_${Math.random()
-        .toString(36)
-        .slice(2, 8)}`,
-      IdCustomer: req.user.id,
-      EstimatedPrice,
-    };
-  })
-);
+    const bookings = await Booking.insertMany(
+      data.map((item) => {
+        const EstimatedPrice = calculatePrice(item); 
+        return {
+          ...item,
+          bookingId: `bk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          IdCustomer: req.user.id,
+          EstimatedPrice,
+        };
+      })
+    );
 
+    // Filter out team members
+    const isTestUser = IGNORED_USERS.includes(req.user.id);
+
+    if (!isTestUser) {
+        bookings.forEach(booking => {
+            // Trigger Telegram alert instead of (or alongside) WhatsApp
+            sendTelegramAlert(booking).catch(err => console.error("Telegram Send Failed:", err.message));
+        });
+    }
 
     res.status(201).json(bookings);
   } catch (err) {
     res.status(500).json({ message: err.message });
-    console.log(err.message);
   }
 });
 
