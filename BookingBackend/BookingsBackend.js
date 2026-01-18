@@ -504,6 +504,29 @@ app.post("/api/dev/token", (req, res) => {
 
 
 
+
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+// Manually define __dirname for ES Modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// The Force Download Route
+app.get('/download-app', (req, res) => {
+    const filePath = path.join(__dirname, 'public', 'urbanLite.apk');
+    
+    res.download(filePath, 'UrbanLite.apk', (err) => {
+        if (err) {
+            console.error("Download error:", err);
+            // If the file isn't found, send a clear message
+            if (!res.headersSent) {
+                res.status(404).send("Apk file not found on server.");
+            }
+        }
+    });
+});
+
 // Customer bookings
 app.get("/api/user/bookings", verifyToken, async (req, res) => {
   try {
