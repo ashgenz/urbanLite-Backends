@@ -506,26 +506,43 @@ app.post("/api/dev/token", (req, res) => {
 
 
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 
-// Manually define __dirname for ES Modules
+// 1. Manually define __dirname (Required for ES Modules)
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// The Force Download Route
+// 3. Register the 'public' folder so Render can see your files
+// Ensure your folder in GitHub is named 'public' (lowercase)
+app.use(express.static(path.join(__dirname, 'public')));
+
+// 4. THE DOWNLOAD ROUTE
 app.get('/download-app', (req, res) => {
+    // Note: Use 'urbanLite.apk' (case-sensitive for Linux/Render)
     const filePath = path.join(__dirname, 'public', 'urbanLite.apk');
-    
-    res.download(filePath, 'UrbanLite.apk', (err) => {
-        if (err) {
-            console.error("Download error:", err);
-            // If the file isn't found, send a clear message
-            if (!res.headersSent) {
-                res.status(404).send("Apk file not found on server.");
+
+    // Check if file exists before trying to send it
+    if (fs.existsSync(filePath)) {
+        console.log("File found! Starting download...");
+        // This forces the 'Save As' dialog in the browser
+        res.download(filePath, 'UrbanLite.apk', (err) => {
+            if (err) {
+                console.error("Error during download:", err);
             }
-        }
-    });
+        });
+    } else {
+        console.error("File NOT found at path:", filePath);
+        res.status(404).send(`
+            <h1>File Not Found</h1>
+            <p>The APK file is missing on the server.</p>
+            <p>Expected Path: <code>${filePath}</code></p>
+        `);
+    }
 });
+
+
+
 
 // Customer bookings
 app.get("/api/user/bookings", verifyToken, async (req, res) => {
